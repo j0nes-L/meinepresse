@@ -1,0 +1,33 @@
+---
+import { Picture } from 'astro:assets';
+import type { Product } from '../data/products';
+import { formatPrice } from '../data/products';
+interface Props { product: Product }
+const { product: p } = Astro.props;
+---
+
+<article class="card">
+  <a href={`/pressen/${p.slug}`} class="card-link">
+    <Picture
+      src={p.image}
+      alt={p.imageAlt}
+      formats={['avif', 'webp']}
+      fallbackFormat="jpg"
+      widths={[400, 640, 900]}
+      sizes="(min-width: 960px) 33vw, (min-width: 640px) 50vw, 100vw"
+      class="card-img"
+    />
+    <div class="card-body">
+      <p class="eyebrow">{p.category}</p>
+      <h3 class="card-title">{p.name}</h3>
+      <p class="muted">{p.tagline}</p>
+      <p class="card-foot">
+        <span class="price">
+          {p.compareAt && <s class="price-old">{formatPrice(p.compareAt)}</s>}
+          {formatPrice(p.price)}
+        </span>
+        <span class="card-cta" aria-hidden="true">Ansehen →</span>
+      </p>
+    </div>
+  </a>
+</article>

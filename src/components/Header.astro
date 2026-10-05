@@ -1,0 +1,24 @@
+---
+import Logo from './Logo.astro';
+import { products } from '../data/products';
+const path = Astro.url.pathname;
+---
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="/" class="brand" aria-label="MeinePRESSe – Startseite"><Logo /></a>
+    <nav aria-label="Hauptnavigation">
+      <ul class="nav">
+        {products.map((p) => (
+          <li>
+            <a href={`/pressen/${p.slug}`} aria-current={path === `/pressen/${p.slug}` ? 'page' : undefined}>
+              {p.shortName}
+            </a>
+          </li>
+        ))}
+        <li class="nav-secondary"><a href="/#vergleich">Vergleich</a></li>
+        <li class="nav-secondary"><a href="/#faq">FAQ</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>

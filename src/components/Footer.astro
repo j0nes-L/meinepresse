@@ -1,0 +1,37 @@
+---
+import Logo from './Logo.astro';
+import { products } from '../data/products';
+const year = new Date().getFullYear();
+---
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div>
+      <a href="/" class="brand" aria-label="MeinePRESSe – Startseite"><Logo /></a>
+      <p class="muted">Saftpressen für frischen Saft – manuell oder elektrisch, gebaut für viele Jahre.</p>
+    </div>
+    <nav aria-label="Modelle">
+      <h2 class="footer-title">Modelle</h2>
+      <ul>{products.map((p) => <li><a href={`/pressen/${p.slug}`}>{p.name}</a></li>)}</ul>
+    </nav>
+    <nav aria-label="Service">
+      <h2 class="footer-title">Service</h2>
+      <ul>
+        <li><a href="/#vergleich">Modellvergleich</a></li>
+        <li><a href="/#faq">Häufige Fragen</a></li>
+        <li><a href="mailto:hallo@meinepresse.de">Kontakt</a></li>
+      </ul>
+    </nav>
+    <nav aria-label="Rechtliches">
+      <h2 class="footer-title">Rechtliches</h2>
+      <ul>
+        <li><a href="/impressum">Impressum</a></li>
+        <li><a href="/datenschutz">Datenschutz</a></li>
+      </ul>
+    </nav>
+  </div>
+  <div class="container footer-bottom muted">
+    <span>© {year} MeinePRESSe</span>
+    <span>Prototyp – Preise und Angaben fiktiv.</span>
+  </div>
+</footer>
