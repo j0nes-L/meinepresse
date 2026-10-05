@@ -13,7 +13,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "models": "node scripts/optimize-models.mjs",
-    "predev": "node scripts/copy-decoder.mjs"
+    "predev": "node scripts/copy-decoder.mjs",
+    "posters": "node scripts/render-posters.mjs"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
@@ -22,6 +23,7 @@
     "three": "^0.183.2"
   },
   "devDependencies": {
-    "@gltf-transform/cli": "^4.5.1"
+    "@gltf-transform/cli": "^4.5.1",
+    "playwright-core": "^1.63.0"
   }
 }

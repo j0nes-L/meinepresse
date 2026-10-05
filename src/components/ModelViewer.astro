@@ -6,8 +6,8 @@ export interface ViewerItem {
   label: string;
   src: string;
   alt: string;
-  image: ImageMetadata;
-  imageAlt: string;
+  /** Standbild des 3D-Modells (kein Foto) */
+  render: ImageMetadata;
   orbit?: string;
 }
 
@@ -29,11 +29,11 @@ const models = items.map(({ label, src, alt, orbit }) => ({ label, src, alt, orb
   <div class="viewer-stage">
     {items.map((it, i) => (
       <Picture
-        src={it.image}
-        alt={it.imageAlt}
+        src={it.render}
+        alt={it.alt}
         formats={['avif', 'webp']}
-        fallbackFormat="jpg"
-        widths={[480, 768, 1024]}
+        fallbackFormat="png"
+        widths={[480, 800, 1200]}
         sizes={sizes}
         class="viewer-poster"
         data-index={i}
