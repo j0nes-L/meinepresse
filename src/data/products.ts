@@ -3,10 +3,6 @@ import type { ImageMetadata } from 'astro';
 import imgStandard from '../assets/images/press-standard.png';
 import imgRustic from '../assets/images/press-rustic.png';
 import imgPro from '../assets/images/press-pro.png';
-// Standbilder der 3D-Modelle (npm run posters) – Platzhalter im 3D-Viewport, bis das Modell geladen ist
-import renderStandard from '../assets/renders/press-standard.png';
-import renderRustic from '../assets/renders/press-rustic.png';
-import renderPro from '../assets/renders/press-pro.png';
 
 export interface Spec {
   label: string;
@@ -31,7 +27,6 @@ export interface Product {
   model: string;
   image: ImageMetadata;
   imageAlt: string;
-  render: ImageMetadata;
   /** Kamera-Startwinkel für den 3D-Viewer */
   orbit: string;
   metaTitle: string;
@@ -73,7 +68,6 @@ export const products: Product[] = [
     inBox: ['PRESS Standard', 'Presskegel mit Sieb', 'Auffangschale', 'Kurzanleitung'],
     model: '/models/press_standard.glb',
     image: imgStandard,
-    render: renderStandard,
     imageAlt: 'PRESS Standard aus Edelstahl presst eine Orange in eine Glaskaraffe',
     orbit: '35deg 75deg 105%',
     metaTitle: 'PRESS Standard – Hebel-Zitruspresse aus Edelstahl | MeinePRESSe',
@@ -114,7 +108,6 @@ export const products: Product[] = [
     inBox: ['PRESS Rustic', 'Presskegel & Auffangschale', 'Pflegeöl (50 ml)', 'Pflegeanleitung'],
     model: '/models/press_rustic.glb',
     image: imgRustic,
-    render: renderRustic,
     imageAlt: 'PRESS Rustic aus Gusseisen presst einen Granatapfel, daneben frische Granatäpfel',
     orbit: '35deg 75deg 105%',
     metaTitle: 'PRESS Rustic – Gusseisen-Saftpresse mit Hebel | MeinePRESSe',
@@ -159,7 +152,6 @@ export const products: Product[] = [
     inBox: ['PRESS Pro', 'Saft- und Tresterbehälter', 'Feinsieb & Grobsieb', 'Stopfer', 'Reinigungsbürste', 'Rezeptheft'],
     model: '/models/press_pro.glb',
     image: imgPro,
-    render: renderPro,
     imageAlt: 'Slow Juicer PRESS Pro mit Litschis im Einfüllschacht und frischem Saft in der Karaffe',
     orbit: '35deg 75deg 105%',
     metaTitle: 'PRESS Pro – Elektrischer Slow Juicer (45 U/min) | MeinePRESSe',

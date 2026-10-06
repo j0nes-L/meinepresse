@@ -88,13 +88,10 @@ const jsonLd = [
         <p class="muted">Dreh, zoom und vergleiche alle drei Pressen – oder stell sie per AR direkt auf deine Arbeitsplatte.</p>
       </header>
       <ModelViewer
-        autoload
-        sizes="(min-width: 1200px) 620px, 70vw"
         items={products.map((p) => ({
           label: p.shortName,
           src: p.model,
           alt: `${p.name} – 3D-Modell`,
-          render: p.render,
           orbit: p.orbit,
         }))}
       />

@@ -13,6 +13,9 @@ interface Model {
   orbit?: string;
 }
 
+/** Dauer der Ausblende-Animation (muss zur CSS-Transition passen) */
+const FADE_MS = 300;
+
 const BASE_ATTRS: Record<string, string> = {
   'camera-controls': '',
   'touch-action': 'pan-y',
@@ -31,52 +34,6 @@ const BASE_ATTRS: Record<string, string> = {
   'ar-modes': 'webxr scene-viewer quick-look',
 };
 
-function applyModel(mv: HTMLElement, m: Model) {
-  mv.setAttribute('src', m.src);
-  mv.setAttribute('alt', m.alt);
-  mv.setAttribute('camera-orbit', m.orbit ?? '30deg 75deg auto');
-  mv.setAttribute('camera-target', 'auto auto auto');
-}
-
-// getModel wird erst nach dem Laden ausgewertet – so gilt ein zwischenzeitlicher Tab-Wechsel
-async function mount(host: HTMLElement, getModel: () => Model) {
-  if (host.querySelector('model-viewer')) return;
-  host.classList.add('is-loading');
-  await loadModelViewer();
-
-  const mv = document.createElement('model-viewer');
-  for (const [k, v] of Object.entries(BASE_ATTRS)) mv.setAttribute(k, v);
-  applyModel(mv, getModel());
-
-  const ar = document.createElement('button');
-  ar.slot = 'ar-button';
-  ar.type = 'button';
-  ar.className = 'btn btn-light viewer-ar';
-  ar.textContent = 'In deinem Raum ansehen (AR)';
-  mv.append(ar);
-
-  // Das Produktfoto bleibt sichtbar, bis das Modell gerendert ist (bzw. bei Fehlern stehen)
-  mv.addEventListener('load', () => {
-    host.classList.remove('is-loading', 'is-error');
-    host.classList.add('is-3d');
-  });
-  mv.addEventListener('error', () => {
-    host.classList.remove('is-loading', 'is-3d');
-    host.classList.add('is-error');
-    mv.remove(); // „In 3D ansehen“ erlaubt einen neuen Versuch
-  });
-  // Kein Scroll-Hijacking: Mausrad scrollt die Seite, Zoom nur mit Strg/⌘ (Trackpad-Pinch sendet ctrlKey)
-  host.addEventListener(
-    'wheel',
-    (e) => {
-      if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
-    },
-    { capture: true },
-  );
-  host.querySelector('.viewer-stage')!.append(mv);
-}
-
-// Ohne WebGL bleibt es beim Produktfoto
 const hasWebGL = (() => {
   try {
     const c = document.createElement('canvas');
@@ -86,49 +43,170 @@ const hasWebGL = (() => {
   }
 })();
 
-export function initViewers() {
-  for (const host of document.querySelectorAll<HTMLElement>('[data-viewer]:not([data-ready])')) {
-    host.dataset.ready = '';
-    if (!hasWebGL) host.classList.add('no-3d');
-    const models = JSON.parse(host.dataset.viewer!) as Model[];
-    let current = 0;
+type ModelViewer = HTMLElement & {
+  jumpCameraToGoal(): void;
+  resetTurntableRotation(theta?: number): void;
+};
 
-    const start = () => hasWebGL && mount(host, () => models[current]);
-    host.querySelector('[data-viewer-start]')?.addEventListener('click', start);
+class Viewer {
+  private mv?: ModelViewer;
+  private current = 0;
+  /** Zählt Ladeaufträge hoch – veraltete (z. B. nach schnellem Tab-Wechsel) werden verworfen */
+  private request = 0;
+  /** src, die gerade geladen wird */
+  private inFlight?: string;
+  /** Modell, dessen letzter Ladeversuch fehlgeschlagen ist */
+  private failed?: string;
+  private stage: HTMLElement;
+  private ring: HTMLElement;
+  private msg: HTMLElement;
 
-    // Modellwechsel (3D-Showroom auf der Startseite)
-    const tabs = host.querySelectorAll<HTMLButtonElement>('[data-viewer-tab]');
+  constructor(private host: HTMLElement, private models: Model[]) {
+    this.stage = host.querySelector('.viewer-stage')!;
+    this.ring = host.querySelector('.viewer-loader')!;
+    this.msg = host.querySelector('.viewer-msg')!;
+  }
+
+  private setState(state: 'idle' | 'loading' | 'ready' | 'error' | 'unsupported') {
+    this.host.dataset.state = state;
+  }
+
+  private setProgress(p: number) {
+    this.host.style.setProperty('--progress', String(p));
+    this.ring.setAttribute('aria-valuenow', String(Math.round(p * 100)));
+  }
+
+  private async ensureModelViewer() {
+    if (this.mv) return this.mv;
+    await loadModelViewer();
+    const mv = document.createElement('model-viewer') as ModelViewer;
+    for (const [k, v] of Object.entries(BASE_ATTRS)) mv.setAttribute(k, v);
+
+    // Eigener Ladering statt der Standard-Fortschrittsleiste
+    const noBar = document.createElement('div');
+    noBar.slot = 'progress-bar';
+    const ar = document.createElement('button');
+    ar.slot = 'ar-button';
+    ar.type = 'button';
+    ar.className = 'btn btn-light viewer-ar';
+    ar.textContent = 'In deinem Raum ansehen (AR)';
+    mv.append(noBar, ar);
+
+    mv.addEventListener('progress', (e) => this.setProgress((e as CustomEvent).detail.totalProgress));
+    mv.addEventListener('load', () => {
+      this.inFlight = undefined;
+      if (this.loadedSrc() === this.models[this.current].src) this.reveal();
+      else this.pump(); // inzwischen wurde ein anderes Modell gewählt
+    });
+    mv.addEventListener('error', () => {
+      this.inFlight = undefined;
+      this.failed = this.loadedSrc();
+      if (this.failed !== this.models[this.current].src) return this.pump();
+      this.msg.textContent = '3D-Modell konnte nicht geladen werden.';
+      this.host.querySelector('.viewer-start-label')!.textContent = 'Erneut versuchen';
+      this.setState('error');
+    });
+
+    // Kein Scroll-Hijacking: Mausrad scrollt die Seite, Zoom nur mit Strg/⌘ (Trackpad-Pinch sendet ctrlKey)
+    this.host.addEventListener('wheel', (e) => !e.ctrlKey && !e.metaKey && e.stopPropagation(), { capture: true });
+
+    this.stage.append(mv);
+    this.mv = mv;
+    return mv;
+  }
+
+  /** Blendet das aktuelle Modell aus, lädt das gewählte und blendet es nach dem Laden ein. */
+  async show(index = this.current) {
+    this.current = index;
+    const req = ++this.request;
+    const wasVisible = this.host.dataset.state === 'ready';
+
+    this.setProgress(0);
+    this.setState('loading');
+    await this.ensureModelViewer();
+    if (wasVisible) await new Promise((r) => setTimeout(r, FADE_MS));
+    if (req !== this.request) return;
+    this.pump();
+  }
+
+  /** Pfad des Modells im Viewer (ohne Cache-Buster) */
+  private loadedSrc() {
+    return this.mv?.getAttribute('src')?.split('?')[0];
+  }
+
+  /**
+   * Startet den Ladevorgang für das gewählte Modell. Es läuft immer nur einer gleichzeitig –
+   * wird währenddessen umgeschaltet, lädt der load-/error-Handler danach das neue Modell.
+   */
+  private pump() {
+    const mv = this.mv!;
+    const m = this.models[this.current];
+    if (this.inFlight) return;
+    if (this.loadedSrc() === m.src && this.failed !== m.src) return this.reveal(); // bereits geladen
+
+    mv.setAttribute('alt', m.alt);
+    mv.setAttribute('camera-orbit', m.orbit ?? '30deg 75deg auto');
+    mv.setAttribute('camera-target', 'auto auto auto');
+    // Nach einem Fehler mit Cache-Buster laden, sonst liefert der Loader-Cache den Fehler erneut
+    const src = this.failed === m.src ? `${m.src}?retry=${Date.now()}` : m.src;
+    this.failed = undefined;
+    this.inFlight = src;
+    mv.setAttribute('src', src);
+  }
+
+  private reveal() {
+    const mv = this.mv!;
+    mv.resetTurntableRotation(0);
+    mv.jumpCameraToGoal();
+    // Einen Frame warten, damit die Kamera steht, bevor das Modell einblendet
+    requestAnimationFrame(() => {
+      if (this.host.dataset.state === 'loading' && this.loadedSrc() === this.models[this.current].src) this.setState('ready');
+    });
+  }
+
+  init() {
+    if (!hasWebGL) {
+      this.msg.textContent = 'Die 3D-Ansicht wird von diesem Browser nicht unterstützt.';
+      this.setState('unsupported');
+      return;
+    }
+
+    this.host.querySelectorAll('[data-viewer-start]').forEach((b) => b.addEventListener('click', () => this.show()));
+
+    // Modellwechsel (3D-Showroom)
+    const tabs = this.host.querySelectorAll<HTMLButtonElement>('[data-viewer-tab]');
     tabs.forEach((tab) =>
       tab.addEventListener('click', () => {
-        current = Number(tab.dataset.viewerTab);
+        const i = Number(tab.dataset.viewerTab);
         tabs.forEach((t) => t.setAttribute('aria-pressed', String(t === tab)));
-        host.querySelectorAll<HTMLElement>('.viewer-poster').forEach((img) => {
-          img.hidden = Number(img.dataset.index) !== current;
-        });
-        const mv = host.querySelector('model-viewer');
-        if (mv) {
-          host.classList.remove('is-3d', 'is-error');
-          host.classList.add('is-loading');
-          applyModel(mv, models[current]);
-        }
+        if (this.host.dataset.state === 'idle') this.current = i;
+        else if (i !== this.current || this.host.dataset.state === 'error') this.show(i);
       }),
     );
 
-    // Produktseiten: auf Desktop automatisch laden, sobald sichtbar. Auf Touch-Geräten und im
-    // Datensparmodus erst per Tipp – spart Datenvolumen (bis 1 MB) und hält die Seite reaktionsschnell.
-    const autoload =
-      hasWebGL && host.hasAttribute('data-autoload') && !navigator.connection?.saveData &&
-      matchMedia('(hover: hover) and (pointer: fine)').matches;
-    if (autoload) {
-      const io = new IntersectionObserver((entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          io.disconnect();
-          const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 200));
-          idle(() => start());
-        }
-      });
-      io.observe(host);
+    // Automatisch laden, sobald der Viewer in die Nähe des sichtbaren Bereichs kommt –
+    // im Datensparmodus erst per Klick
+    if (navigator.connection?.saveData) {
+      this.setState('idle');
+      return;
     }
+    this.setState('loading');
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        this.show();
+      },
+      { rootMargin: '200px' },
+    );
+    io.observe(this.host);
+  }
+}
+
+export function initViewers() {
+  for (const host of document.querySelectorAll<HTMLElement>('[data-viewer]:not([data-ready])')) {
+    host.dataset.ready = '';
+    new Viewer(host, JSON.parse(host.dataset.viewer!)).init();
   }
 }
 

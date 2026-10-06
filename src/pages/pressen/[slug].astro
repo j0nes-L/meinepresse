@@ -89,10 +89,7 @@ const jsonLd = [
       <ModelViewer
         id="ansehen"
         class="product-viewer"
-        autoload
-        priority
-        sizes="(min-width: 960px) 34vw, 80vw"
-        items={[{ label: p.shortName, src: p.model, alt: `${p.name} – 3D-Modell`, render: p.render, orbit: p.orbit }]}
+        items={[{ label: p.shortName, src: p.model, alt: `${p.name} – 3D-Modell`, orbit: p.orbit }]}
       />
 
       <div class="product-info">
